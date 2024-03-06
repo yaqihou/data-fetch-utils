@@ -1,22 +1,23 @@
-# Data Fetching Utilities Collection
+
+* Data Fetching Utilities Collection
 
 This repository stores a collection of scripts I used to fetch data from WWW.
 
 Disclaimer: all scripts here are just to make my life easier, and nothing was intended to be used as web crawler or for large-scale data fetching. 
 
-All scripts tested under Ubuntu 22.04, Python 3.10.
+All scripts tested under ~Ubuntu 22.04, Python 3.10~.
 
 
-## Scripts and Usage Case
+** Scripts and Usage Case
 
-### Flight Price Check
+*** Flight Price Check
 
-Limitations:
-- Occasionally fail to load the results, so that some hard-coded refresh is used as a workaround. Will fetch the results eventually in most of time, just the process looks nasty
-- Only fetch the price on the depart screen, i.e. shows only the lowest price
-- Only implemented for AA
+**** Features
 
-```
+- Check prices and 
+
+**** Usage
+#+begin_src
 usage: check_aa_flight.py [-h] -f FROM_AIRPORT -t DEST_AIRPORT [-d [DEPART_DATE]] [-r [RETURN_DATE]] [--repeat-interval [REPEAT_INTERVAL]] [--repeat [REPEAT]] [--notify] [--no-export-pkl] [--pkl-save-folder PKL_SAVE_FOLDER]
                           [--no-export-txt] [--txt-save-folder TXT_SAVE_FOLDER] [--no-export-tsv] [--tsv-save-folder TSV_SAVE_FOLDER]
 
@@ -43,10 +44,16 @@ options:
   --no-export-tsv       Do not save fights info as TSV file
   --tsv-save-folder TSV_SAVE_FOLDER
                         Folder to save tsv files
-```
+#+end_src
 
-For example, assuming that I could like to travel on Wed and return the next Tue after my departure, and I wanted to check for the next 10 weeks for the price. The command is as below:
+For example, assuming that I could like to travel on Wed, return the next Tue after my departure, and I wanted to check for the next 10 weeks. The command is as below:
 
-```bash
+#+begin_src shell 
 python3 check_aa_flight.py -f AAA -t BBB -d "next wed" -r "next Tue" --repeat 10 --repeat-interval 7
-```
+#+end_src
+
+**** Limitations
+- Occasionally fail to load the results, so that some hard-coded refresh is used as a workaround. Will fetch the results eventually in most of time, just the process looks nasty
+- Only fetch the price on the depart screen, i.e. shows only the lowest price
+- Only implemented for AA
+
