@@ -3,6 +3,8 @@ import os
 import datetime as dt
 import parsedatetime as pdt
 
+import requests
+
 from PIL import Image, ImageDraw, ImageFont
 
 
@@ -22,9 +24,13 @@ def convert_text_to_img(
 ):
     cols = max(len(line) for line in lines)
     rows = len(lines)
+    img_sz = (20 * 2 + cols * int(fnt_size * fnt_ratio), 20 * 2 + rows * fnt_size)
+    # MAX_DIMENSION = 65000 # MAX is 65500
+    # if max(img_sz) > MAX_DIMENSION
+    #     # TODO 
 
     # mode "1" for black and white
-    img = Image.new("1", (20 * 2 + cols * int(fnt_size * fnt_ratio), 20 * 2 + rows * fnt_size))
+    img = Image.new("1", img_sz)
     fnt = ImageFont.truetype(fnt_path, fnt_size)
     d = ImageDraw.Draw(img)
 
@@ -52,3 +58,31 @@ def parse_str_date(date_to_parse, source_date=None):
 
     return date
     
+def send_pushover_notification(message, title="", files=dict()):
+    token = os.getenv("PUSHOVER_TOKEN")
+    user = os.getenv("PUSHOVER_USER")
+
+    data = {
+            "token": token,
+            "user": user,
+            "message": message,
+        }
+    if title:
+        data['title'] = title
+
+    r = requests.post(
+        "https://api.pushover.net/1/messages.json",
+        data = data,
+        files=files)
+
+    return r
+
+    # conn = http.client.HTTPSConnection("api.pushover.net:443")
+    # conn.request("POST", "/1/messages.json",
+    #              urllib.parse.urlencode({
+    #                  "token": token,
+    #                  "user": user,
+    #                  "message": message,
+    #                  "title": title
+    #              }), { "Content-type": "application/x-www-form-urlencoded" })
+    # conn.getresponse()

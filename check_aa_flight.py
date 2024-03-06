@@ -1,11 +1,13 @@
 
 import os
+import time
 import datetime as dt
 from argparse import ArgumentParser
+import subprocess
 
 from src.driver import MyDriver
 from src.utils import parse_str_date
-from src.aa_flight_checker import AAFlightChecker
+from src.flights.aa_flight_checker import AAFlightChecker
 
 parser = ArgumentParser()
 parser.add_argument('-f', '--from', '--origin',
@@ -27,19 +29,19 @@ parser.add_argument('--notify', action="store_true", help='Send notification whe
 # parser.add_argument('--export-pkl', nargs='?', default=False, type=str,
 parser.add_argument('--no-export-pkl', action="store_true",
                     help="Do not savee fights info as PKL file")
-parser.add_argument('--pkl-save-folder', type=str, nargs=1,
+parser.add_argument('--pkl-save-folder', type=str, nargs='?',
                     default=os.path.join(str(os.getenv('HOME')), 'Data/AA-Flights/pkl'),
                     help="Folder to save pkl files")
 
 parser.add_argument('--no-export-txt', action="store_true",
                     help="Do not save fights info as TXT file")
-parser.add_argument('--txt-save-folder', type=str, nargs=1,
+parser.add_argument('--txt-save-folder', type=str, nargs='?',
                     default=os.path.join(str(os.getenv('HOME')), 'Data/AA-Flights/txt'),
                     help="Folder to save txt files")
 
 parser.add_argument('--no-export-tsv', action="store_true",
                     help="Do not save fights info as TSV file")
-parser.add_argument('--tsv-save-folder', type=str, nargs=1,
+parser.add_argument('--tsv-save-folder', type=str, nargs='?',
                     default=os.path.join(str(os.getenv('HOME')), 'Data/AA-Flights/tsv'),
                     help="Folder to save tsv files")
 
@@ -52,19 +54,22 @@ dest_airport = args.dest_airport[0]
 depart_date = parse_str_date(args.depart_date)
 return_date = parse_str_date(args.return_date, source_date=depart_date)
 
+# This is useful when called from cron, as sometimes encountered not interactable element error
+# subprocess.run("DISPLAY=:1 xset dpms force on", shell=True)
+
 with MyDriver() as driver:
     for _ in range(args.repeat):
         checker = AAFlightChecker(from_airport, dest_airport, depart_date, return_date, driver=driver)
         checker.run()
 
         if not args.no_export_pkl:
-            checker.dump_pkl(save_folder=args.pkl_save_folder[0])
+            checker.dump_pkl(save_folder=args.pkl_save_folder)
 
         if not args.no_export_txt:
-            checker.dump_txt(save_folder=args.txt_save_folder[0])
+            checker.dump_txt(save_folder=args.txt_save_folder)
 
         if not args.no_export_tsv:
-            checker.dump_tsv(save_folder=args.tsv_save_folder[0])
+            checker.dump_tsv(save_folder=args.tsv_save_folder)
 
         if args.notify:
             checker.send_notification()
@@ -72,3 +77,5 @@ with MyDriver() as driver:
         depart_date = depart_date + dt.timedelta(args.repeat_interval)
         return_date = return_date + dt.timedelta(args.repeat_interval)
 
+        print("Flights check finished, wait for 5 secs to get next one")
+        time.sleep(5)

@@ -11,8 +11,6 @@ from tabulate import SEPARATING_LINE, tabulate
 
 from tqdm import tqdm
 
-import requests
-
 from selenium.webdriver.chrome.webdriver import WebDriver
 
 from selenium.webdriver.common.by import By
@@ -21,10 +19,10 @@ from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import NoSuchElementException, TimeoutException
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
-from .utils import convert_text_to_img
-from .driver import MyDriver
+from ..utils import convert_text_to_img, send_pushover_notification
+from ..driver import MyDriver
 
 # NOTE - there are hidden accessible class having more details textual information
 UNKNOWN_CABIN = "UNK_CABIN"
@@ -39,7 +37,8 @@ class Flight:
     stop: str
     flight_details: list[tuple[str, str]]
 
-    prices: dict[str, str | list[str]]
+    prices: dict[str, str]
+    prices_cabin_unk: list[str] = field(default_factory=list)
 
     stop_num: int = -1
 
@@ -63,7 +62,12 @@ class Flight:
         # return [f.name for f in dataclasses.fields(self)]
         return ['Depart', "Arrive", "Duration", "Stop", "Stop Details", "Flight#", "Aircraft", "Price"]
 
-    def export(self):
+    def export(self, cabins: Optional[list[str]] = None):
+        if cabins:
+            prices = [self.prices.get(cabin, 'N/A') for cabin in cabins]
+        else:
+            prices = list(self.prices.values())
+        
         return [self.depart_time,
                 self.arrive_time,
                 self.duration,
@@ -72,9 +76,88 @@ class Flight:
                 # The tuple is (flight number, aircraft)
                 '\n'.join(x[0] for x in self.flight_details),
                 '\n'.join(x[1] for x in self.flight_details),
-                *[",".join(v) if k == UNKNOWN_CABIN else v
-                  for k, v in self.prices.items()]
+                *prices,
+                *self.prices_cabin_unk
                 ]
+
+class Flights:
+
+    def __init__(self, flight_lst: list[Flight] = []):
+        self.flights = flight_lst
+
+    def __len__(self):
+        return len(self.flights)
+
+    @property
+    def cabins(self):
+        ret = set()
+        for flight in self.flights:
+            ret.update(flight.prices.keys())
+        return list(ret)
+
+    @property
+    def exist_unk_cabin(self):
+        return any(len(flight.prices_cabin_unk) > 0 for flight in self.flights)
+
+    def add_flight(self, flight: Flight):
+        self.flights.append(flight)
+
+    def get_min_price(self, stop: Optional[int] = None):
+        ret = {cabin: 1e9 for cabin in self.cabins}
+        if self.exist_unk_cabin:
+            ret[UNKNOWN_CABIN] = 1e9
+
+        for flight in self.flights:
+            if stop is not None and flight.stop_num != stop:
+                continue
+            
+            for cabin, price in flight.prices.items():
+                try:
+                    p = int(price)
+                    ret[cabin] = min(ret[cabin], p)
+                except:
+                    # print("Could not convert price into int, skip")
+                    pass
+
+            for prices in flight.prices_cabin_unk:
+                for price in prices:
+                    try:
+                        p = int(price)
+                        ret[UNKNOWN_CABIN] = min(ret[UNKNOWN_CABIN], p)
+                    except:
+                        pass
+
+        for k, v in ret.items():
+            if v == 1e9:  ret[k] = 'N/A'
+
+        return ret
+
+    def export_stat(self):
+        min_prices_nonstop = self.get_min_price(stop=0)
+        min_prices_all = self.get_min_price()
+
+        ret = [["Num of Flights:", len(self)]]
+        # TODO - add more based on depart / arrive time
+
+        for _type, data in [
+                ("Nonstop", min_prices_nonstop),
+                ("All", min_prices_all)]:
+            tmp = []
+            for cabin, min_price in data.items():
+                tmp.append(f"Min Price ({_type}, {cabin})")
+                tmp.append(min_price)
+            ret.append(tmp)
+        return ret
+
+    def export_details(self, add_separation: bool = True):
+        ret = []
+        
+        ret.append(self.flights[0].export())
+        for flight in self.flights[1:]:
+            if add_separation:  ret.append(SEPARATING_LINE)
+            ret.append(flight.export(cabins=self.cabins))
+
+        return ret
 
 
 class AAFlightChecker:
@@ -107,6 +190,9 @@ class AAFlightChecker:
         if not driver:
             driver = MyDriver().driver
         self.driver = driver
+
+        self.running_time = dt.datetime.now()
+        self.flights: Flights = Flights()
 
     def click_and_enter(self, *args, text=""):
         assert isinstance(text, str), f"Given input text {text} ({type(text)}) is not str"
@@ -175,7 +261,7 @@ class AAFlightChecker:
 
         # The maximum waiting time for the results request is 30 sec, with 5 extra loading time
         try:
-            WebDriverWait(self.driver, 60).until(
+            WebDriverWait(self.driver, 40).until(
                 EC.presence_of_element_located((By.CSS_SELECTOR, 'div.results-matrix'))
             )
         except TimeoutException as e:
@@ -183,12 +269,12 @@ class AAFlightChecker:
             print('Encounter error when submitting, try to refresh')
             self.driver.refresh()
 
-            WebDriverWait(self.driver, 30).until(
+            WebDriverWait(self.driver, 40).until(
                 EC.presence_of_element_located((By.CSS_SELECTOR, 'div.results-matrix'))
             )
     # -----------------------------------------
 
-    def parse_flights(self) -> list[Flight]:
+    def parse_flights(self):
         self.driver.implicitly_wait(0)
 
         results_matrix = self.driver.find_element(By.CSS_SELECTOR, 'div.results-matrix')
@@ -205,10 +291,8 @@ class AAFlightChecker:
         results = results_matrix.find_element(By.CSS_SELECTOR, 'div.results-grid-container')
 
         appslices = results.find_elements(By.TAG_NAME, 'app-slice-details')
-        flights = [self._parse_flight_details(appslice)
-                   for appslice in tqdm(appslices, desc='Parsing flight')]
-
-        return flights
+        for appslice in tqdm(appslices, desc='Parsing flight'):
+            self.flights.add_flight(self._parse_flight_details(appslice))
 
     def _parse_flight_details(self, appslice) -> Flight:
 
@@ -243,6 +327,7 @@ class AAFlightChecker:
         products = appslice.find_elements(By.CSS_SELECTOR, 'app-product-groups > div.product-groups > div')
 
         prices = dict()
+        prices_unknown_cabin = []
         for product in products:
 
             cabin = UNKNOWN_CABIN
@@ -260,8 +345,7 @@ class AAFlightChecker:
                 price = "N/A"
 
             if cabin == UNKNOWN_CABIN:
-                prices.setdefault(cabin, [])
-                prices[cabin].append(price)
+                prices_unknown_cabin.append(price)
             else:
                 prices[cabin] = price
 
@@ -271,7 +355,9 @@ class AAFlightChecker:
             duration=duration,
             stop=stop,
             flight_details=flight_details,
-            prices=prices)
+            prices=prices,
+            prices_cabin_unk=prices_unknown_cabin
+        )
 
     # -----------------------------------------
     def _get_file_basename(self):
@@ -280,83 +366,72 @@ class AAFlightChecker:
             self.dest_airport,
             self.depart_date.replace('/', '_'),
             self.return_date.replace('/', '_'),
-        ]) + dt.datetime.now().strftime('@%Y%m%d-%H:%M:%S')
+        ]) + "@" + self.running_time.strftime('%Y%m%d-%H:%M:%S')
+
+    def _get_folder(self, save_folder):
+        folder = os.path.join(save_folder, f'{self.from_airport}-{self.dest_airport}')
+        os.makedirs(folder, exist_ok=True)
+        return folder
     
-    def dump_pkl(self, filename=None, save_folder="./pkl"):
-        os.makedirs(save_folder, exist_ok=True)
+    def dump_pkl(self, filename=None, save_folder="."):
+        folder = self._get_folder(save_folder)
         filename = filename if filename else self._get_file_basename() + '.pkl'
 
-        with open(os.path.join(save_folder, filename), "wb") as f:
+        path = os.path.join(folder, filename)
+        with open(path, 'wb') as f:
             pickle.dump(self.flights, f)
+            print(f"Pkl file saved to {path}")
 
     def dump_txt(self, filename=None, save_folder="."):
-        os.makedirs(save_folder, exist_ok=True)
+        folder = self._get_folder(save_folder)
         filename = filename if filename else self._get_file_basename() + '.txt'
 
-        with open(os.path.join(save_folder, filename), "w") as f:
+        path = os.path.join(folder, filename)
+        with open(path, 'w') as f:
             f.write(self.tabulate_flights())
+            print(f"TXT file saved to {path}")
 
     def dump_tsv(self, filename=None, save_folder="." ):
-        os.makedirs(save_folder, exist_ok=True)
+        folder = self._get_folder(save_folder)
         filename = filename if filename else self._get_file_basename() + '.tsv'
 
-        with open(os.path.join(save_folder, filename), "w") as f:
+        path = os.path.join(folder, filename)
+        with open(path, 'w') as f:
             f.write(self.tabulate_flights(fmt='tsv'))
+            print(f"TSV file saved to {path}")
 
+    def _get_meta_data(self):
+        ret = [["From:", self.from_airport, "To:", self.dest_airport,
+                 "Depart:", self.depart_date, "Return:", self.return_date],
+                ["Collect Time:", self.running_time.strftime('%Y/%m/%d %H:%M:%S')]]
+        ret += self.flights.export_stat()
+        return ret
+        
     def tabulate_flights(self, fmt='simple') -> str:
-       metadata = [["From:", self.from_airport, "To:", self.dest_airport],
-                   ["Depart:", self.depart_date, "Return:", self.return_date],
-                   ["Collect Time:", dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')],
-                   SEPARATING_LINE]
-
-       data = [
-           Flight.header(),
-           [""] * (len(Flight.header()) - 1) + self.cabins,
-           SEPARATING_LINE
-       ]
-
-       data.append(self.flights[0].export())
-       for flight in self.flights[1:]:
-           data.append(SEPARATING_LINE)
-           data.append(flight.export())
-
-       return tabulate(metadata + data, tablefmt=fmt)
+        metadata = self._get_meta_data() + [SEPARATING_LINE]
+        
+        data = [
+            Flight.header(),
+            [""] * (len(Flight.header()) - 1) + self.cabins,
+            SEPARATING_LINE
+        ] + self.flights.export_details()
+        
+        return tabulate(metadata + data, tablefmt=fmt)
 
     def send_notification(self):
 
-       token = os.getenv("PUSHOVER_TOKEN")
-       user = os.getenv("PUSHOVER_USER")
-       title = "AA Fligth Check Report"
-       message = "\n".join([
-           f"Report Time: {dt.datetime.now()}",
-           "",
-           "Please find the attached file for flight price details"
-           # TODO - share some bird view stats (min price and etc)
-       ])
-
-       convert_text_to_img(self.tabulate_flights(), self.tmp_image_path)
-       r = requests.post(
-           "https://api.pushover.net/1/messages.json",
-           data = {
-               "token": token,
-               "user": user,
-               "message": message,
-               "title": title
-           },
-           files = {
-               "attachment": (self.tmp_image_path, open(self.tmp_image_path, "rb"), "image/jpeg")
-           })
-
-       # conn = http.client.HTTPSConnection("api.pushover.net:443")
-       # conn.request("POST", "/1/messages.json",
-       #              urllib.parse.urlencode({
-       #                  "token": token,
-       #                  "user": user,
-       #                  "message": message,
-       #                  "title": title
-       #              }), { "Content-type": "application/x-www-form-urlencoded" })
-       # conn.getresponse()
-
+        title = "AA Fligth Check Report"
+        message = (
+            "\n".join([f"Report Time: {dt.datetime.now()}", "",])
+            + "\n".join(" ".join(map(str, line)) for line in self._get_meta_data())
+            )
+        
+        convert_text_to_img(self.tabulate_flights().splitlines(), self.tmp_image_path)
+        files = {
+            "attachment": (self.tmp_image_path, open(self.tmp_image_path, "rb"), "image/jpeg")
+        }       
+        send_pushover_notification(message, title=title, files=files)
+        
     # -----------------------------------------
     def _run(self):
         self.driver.get(self.start_page)
@@ -373,23 +448,17 @@ class AAFlightChecker:
         # )
         self.submit()
 
-        self.flights = self.parse_flights()
-    
+        self.parse_flights()
+
     def run(self):
 
         retries = 0
         while not self.success and retries < self.MAX_RETRIES:
             try:
                 self._run()
-            except TimeoutException as e:
-                print('Timeout when waiting for the requested results, wait for 10 sec and retry')
-                time.sleep(10)
-                retries += 1
-            except NoSuchElementException as e:
+            except Exception as e:
                 traceback.print_exc()
-                print('Faield to find an element when waiting for the requested results,'
-                      ' wait for 10 sec and retry')
-                time.sleep(10)
+                print('Encountered the above exception, retrying')
                 retries += 1
             else:
                 self.success = True
