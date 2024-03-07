@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 
 import os
-import re
 import time
 import pickle
-import traceback
+import logging
 import datetime as dt
 from typing import Optional
 from tabulate import SEPARATING_LINE, tabulate
@@ -19,146 +18,13 @@ from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import NoSuchElementException, TimeoutException
 
-from dataclasses import dataclass, field
 
 from ..utils import convert_text_to_img, send_pushover_notification
 from ..driver import MyDriver
+from .defs import Flight, Flights, UNKNOWN_CABIN
 
+logger = logging.getLogger('data-fetch-utils.flights')
 # NOTE - there are hidden accessible class having more details textual information
-UNKNOWN_CABIN = "UNK_CABIN"
-
-@dataclass
-class Flight:
-
-    depart_time: str
-    arrive_time: str
-
-    duration: str
-    stop: str
-    flight_details: list[tuple[str, str]]
-
-    prices: dict[str, str]
-    prices_cabin_unk: list[str] = field(default_factory=list)
-
-    stop_num: int = -1
-
-
-    # TODO - add post parsing for stop_int
-    def __post_init__(self):
-        if self.stop == 'NON-STOP':
-            self.stop_num = 0
-        else:
-            m = re.search(r"([0-9]+) ?stop", self.stop)
-            if m:
-                try:
-                    self.stop_num = int(m.group(1))
-                except:
-                    print(f'Failed to parsing {self.stop} to integer')
-
-            self.stop = "\n".join(line.strip(',') for line in self.stop.splitlines())
-
-    @classmethod
-    def header(cls) -> list[str]:
-        # return [f.name for f in dataclasses.fields(self)]
-        return ['Depart', "Arrive", "Duration", "Stop", "Stop Details", "Flight#", "Aircraft", "Price"]
-
-    def export(self, cabins: Optional[list[str]] = None):
-        if cabins:
-            prices = [self.prices.get(cabin, 'N/A') for cabin in cabins]
-        else:
-            prices = list(self.prices.values())
-        
-        return [self.depart_time,
-                self.arrive_time,
-                self.duration,
-                self.stop_num,
-                self.stop,
-                # The tuple is (flight number, aircraft)
-                '\n'.join(x[0] for x in self.flight_details),
-                '\n'.join(x[1] for x in self.flight_details),
-                *prices,
-                *self.prices_cabin_unk
-                ]
-
-class Flights:
-
-    def __init__(self, flight_lst: list[Flight] = []):
-        self.flights = flight_lst
-
-    def __len__(self):
-        return len(self.flights)
-
-    @property
-    def cabins(self):
-        ret = set()
-        for flight in self.flights:
-            ret.update(flight.prices.keys())
-        return list(ret)
-
-    @property
-    def exist_unk_cabin(self):
-        return any(len(flight.prices_cabin_unk) > 0 for flight in self.flights)
-
-    def add_flight(self, flight: Flight):
-        self.flights.append(flight)
-
-    def get_min_price(self, stop: Optional[int] = None):
-        ret = {cabin: 1e9 for cabin in self.cabins}
-        if self.exist_unk_cabin:
-            ret[UNKNOWN_CABIN] = 1e9
-
-        for flight in self.flights:
-            if stop is not None and flight.stop_num != stop:
-                continue
-            
-            for cabin, price in flight.prices.items():
-                try:
-                    p = int(price)
-                    ret[cabin] = min(ret[cabin], p)
-                except:
-                    # print("Could not convert price into int, skip")
-                    pass
-
-            for prices in flight.prices_cabin_unk:
-                for price in prices:
-                    try:
-                        p = int(price)
-                        ret[UNKNOWN_CABIN] = min(ret[UNKNOWN_CABIN], p)
-                    except:
-                        pass
-
-        for k, v in ret.items():
-            if v == 1e9:  ret[k] = 'N/A'
-
-        return ret
-
-    def export_stat(self):
-        min_prices_nonstop = self.get_min_price(stop=0)
-        min_prices_all = self.get_min_price()
-
-        ret = [["Num of Flights:", len(self)]]
-        # TODO - add more based on depart / arrive time
-
-        for _type, data in [
-                ("Nonstop", min_prices_nonstop),
-                ("All", min_prices_all)]:
-            tmp = []
-            for cabin, min_price in data.items():
-                tmp.append(f"Min Price ({_type}, {cabin})")
-                tmp.append(min_price)
-            ret.append(tmp)
-        return ret
-
-    def export_details(self, add_separation: bool = True):
-        ret = []
-        
-        ret.append(self.flights[0].export())
-        for flight in self.flights[1:]:
-            if add_separation:  ret.append(SEPARATING_LINE)
-            ret.append(flight.export(cabins=self.cabins))
-
-        return ret
-
 
 class AAFlightChecker:
 
@@ -182,17 +48,20 @@ class AAFlightChecker:
         self.from_airport = from_airport
         self.dest_airport = dest_airport
 
-        print("Checking for the following flight:")
-        print(f"    - {self.from_airport} -> {self.dest_airport}")
-        print(f"    - {self.depart_date} -> {self.return_date}")
+        logger.info("Checking for the following flight:")
+        logger.info(f"    - {self.from_airport} -> {self.dest_airport}")
+        logger.info(f"    - {self.depart_date} -> {self.return_date}")
 
         self.success = False
         if not driver:
             driver = MyDriver().driver
         self.driver = driver
 
+        self.reset()
+
+    def reset(self):
         self.running_time = dt.datetime.now()
-        self.flights: Flights = Flights()
+        self.flights: Flights = Flights([])
 
     def click_and_enter(self, *args, text=""):
         assert isinstance(text, str), f"Given input text {text} ({type(text)}) is not str"
@@ -231,7 +100,7 @@ class AAFlightChecker:
             button = shadow_root.find_element(By.CSS_SELECTOR, '#toast-dismiss-button')
             button.click()
         except NoSuchElementException:
-            print('No cookie banner detected.')
+            logging.debug('No cookie banner detected.')
         else:
             time.sleep(0.5)
 
@@ -266,12 +135,13 @@ class AAFlightChecker:
             )
         except TimeoutException as e:
             # Usually a refresh will work
-            print('Encounter error when submitting, try to refresh')
+            logger.debug('Encounter error when submitting, try to refresh')
             self.driver.refresh()
 
             WebDriverWait(self.driver, 40).until(
                 EC.presence_of_element_located((By.CSS_SELECTOR, 'div.results-matrix'))
             )
+            
     # -----------------------------------------
 
     def parse_flights(self):
@@ -286,6 +156,7 @@ class AAFlightChecker:
         self.cabins = []
         for cabin in cabin_group.find_elements(By.TAG_NAME, 'button'):
             self.cabins.append(cabin.get_attribute('id').lower().removeprefix('sort-by-'))
+        self.flights.update_cabins(self.cabins)
 
         # Get flight details
         results = results_matrix.find_element(By.CSS_SELECTOR, 'div.results-grid-container')
@@ -344,7 +215,7 @@ class AAFlightChecker:
             except NoSuchElementException:
                 price = "N/A"
 
-            if cabin == UNKNOWN_CABIN:
+            if cabin == UNKNOWN_CABIN and price != 'N/A':
                 prices_unknown_cabin.append(price)
             else:
                 prices[cabin] = price
@@ -380,7 +251,7 @@ class AAFlightChecker:
         path = os.path.join(folder, filename)
         with open(path, 'wb') as f:
             pickle.dump(self.flights, f)
-            print(f"Pkl file saved to {path}")
+            logger.info(f"Pkl file saved to {path}")
 
     def dump_txt(self, filename=None, save_folder="."):
         folder = self._get_folder(save_folder)
@@ -389,7 +260,7 @@ class AAFlightChecker:
         path = os.path.join(folder, filename)
         with open(path, 'w') as f:
             f.write(self.tabulate_flights())
-            print(f"TXT file saved to {path}")
+            logger.info(f"TXT file saved to {path}")
 
     def dump_tsv(self, filename=None, save_folder="." ):
         folder = self._get_folder(save_folder)
@@ -398,7 +269,7 @@ class AAFlightChecker:
         path = os.path.join(folder, filename)
         with open(path, 'w') as f:
             f.write(self.tabulate_flights(fmt='tsv'))
-            print(f"TSV file saved to {path}")
+            logger.info(f"TSV file saved to {path}")
 
     def _get_meta_data(self):
         ret = [["From:", self.from_airport, "To:", self.dest_airport,
@@ -414,7 +285,12 @@ class AAFlightChecker:
             Flight.header(),
             [""] * (len(Flight.header()) - 1) + self.cabins,
             SEPARATING_LINE
-        ] + self.flights.export_details()
+        ]
+        for line in self.flights.export_details():
+            data.append(line)
+            data.append(SEPARATING_LINE)
+        data.pop()  # Remove the last separating line
+        logger.debug(f'Tabulated entries num: {len(self.flights)}')
         
         return tabulate(metadata + data, tablefmt=fmt)
 
@@ -434,6 +310,7 @@ class AAFlightChecker:
         
     # -----------------------------------------
     def _run(self):
+        self.reset()
         self.driver.get(self.start_page)
 
         self.fill_search_info()
@@ -457,8 +334,7 @@ class AAFlightChecker:
             try:
                 self._run()
             except Exception as e:
-                traceback.print_exc()
-                print('Encountered the above exception, retrying')
+                logging.debug('Encountered the above exception, retrying', exc_info=1)
                 retries += 1
             else:
                 self.success = True
