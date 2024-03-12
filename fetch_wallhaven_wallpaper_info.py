@@ -1,11 +1,14 @@
 
 import os
 import sys
-import argparse
 import logging
+import argparse
+
+from src.logger import MyLogger
+from src.wallhaven.fetcher import IDFetcher
 
 parser = argparse.ArgumentParser()
-parser.add_argument('wall_ids', nargs='+', type=str, default=[],
+parser.add_argument('wall_ids', nargs='*', type=str, default=[],
                     help='Waiting interval between two downloads or requests')
 parser.add_argument('-d', '--download-files', action='store_true',
                     help="Whether to download image files (Default False)")
@@ -22,7 +25,7 @@ parser.add_argument('-o', '--keep-output', action='store_true',
 
 args = parser.parse_args()
 
-logger = logging.getLogger('data-fetch-utils.wallhaven')
+logger = MyLogger('data-fetch-utils.wallhaven')
 logger.handlers.clear()
 
 formatter = logging.Formatter(
@@ -44,8 +47,6 @@ if args.log_file is None or args.keep_output:
     logger.addHandler(stream_handler)
 
 logger.setLevel(logging.DEBUG)
-
-from src.wallhaven.fetcher import IDFetcher
 
 wall_ids = args.wall_ids
 if os.path.isfile(args.input):

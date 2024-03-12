@@ -6,15 +6,15 @@ import time
 import pickle
 from typing import Iterable, Optional
 import requests
-import logging
 from tqdm import tqdm
 
 from .defs import Wallpaper 
 from .enums import Purity, Category, Sorting, SortingOrder, TopRange, Color
 from .api import API
 from ..exceptions import TooManyRequestsError, UnknownResponseError
+from ..logger import MyLogger
 
-logger = logging.getLogger('data-fetch-utils.wallhaven.fetcher')
+logger = MyLogger('data-fetch-utils.wallhaven.fetcher')
 
 class Fetcher(abc.ABC):
 
@@ -28,9 +28,7 @@ class Fetcher(abc.ABC):
     if os.path.isfile(cache_file):
         with open(cache_file, 'rb') as f:
             cache = pickle.load(f)
-        logger.debug(f'Loaded {len(cache)} entries from cache file {cache_file}')
     else:
-        logger.debug(f'Cache file {cache_file} does not exist, create an empty one')
         cache = {}
 
     def __init__(self,
@@ -38,8 +36,7 @@ class Fetcher(abc.ABC):
                  download_file: bool = True,
                  base_dir: Optional[str] = None,
                  max_retries: int = 5,
-                 interval: int = 2
-                 ):
+                 interval: int = 2):
 
         self.need_fetch_wallpaper_details = fetch_wallpaper_details
         self.need_download_file = download_file
@@ -48,6 +45,7 @@ class Fetcher(abc.ABC):
         self.interval = interval
 
         self.api = API(max_retries=max_retries, request_interval=interval)
+        logger.debug(f'Loaded {len(self.cache)} entries from cache file {self.cache_file}')
 
         logger.info("Fetcher initialize setup")
         logger.info(f'Need to fetch wallpaper details: {self.need_fetch_wallpaper_details}')
@@ -67,7 +65,7 @@ class Fetcher(abc.ABC):
 
         with open(self.cache_file, 'wb') as f:
             pickle.dump(self.cache, f)
-            logging.debug(f'Saved {len(self.cache)} cached entries to {self.cache_file}')
+            logger.debug(f'Saved {len(self.cache)} cached entries to {self.cache_file}')
 
     def download(self, wallpaper: Wallpaper, **kwargs):
 
@@ -132,20 +130,34 @@ class Fetcher(abc.ABC):
 
     def fetch_wallpaper_details(self, wallpapers: list[Wallpaper]):
         
+        save_cnt = 0
         for wall in tqdm(wallpapers, desc="Updating wallpaper details"):
 
             if wall.id in self.cache:
                 logger.info(f'Wallpaper details for {wall.id} existed in cache')
                 wall.update(self.cache[wall.id])
             else:
-                logger.info(f'Fetching details for {wall.id}')
-                r = self.api.get_wallpaper_info(wid=wall.id)
-                json = r.json()
-                if "error" in json:
-                    logger.warning(f"Encountered error when fetching details for wallpaper {wall.id}")
+                try:
+                    logger.info(f'Fetching details for {wall.id}')
+                    r = self.api.get_wallpaper_info(wid=wall.id)
+                except UnknownResponseError as e:
+                    logger.warning("Encountered unknown response error when fetching details for wallpaper",
+                                   exc_info=e)
+                    wall.update({'path': 'ERROR'})
                 else:
-                    wall.update(json['data'])
-                    self.add_to_cache(wall)
+                    json = r.json()
+                    if "error" in json:
+                        logger.warning(f"Encountered error when fetching details for wallpaper {wall.id}")
+                        wall.update({'path': 'ERROR'})
+                    else:
+                        wall.update(json['data'])
+
+                self.add_to_cache(wall)
+
+                save_cnt += 1
+                if save_cnt == 200:
+                    self.save_cache()
+                    save_cnt = 0
 
         self.save_cache()
 
@@ -240,6 +252,7 @@ class IDFetcher(Fetcher):
                          max_retries=max_retries,
                          interval=interval)
         self.wall_ids = wall_ids
+        logger.info(f'Loaded {len(wall_ids)} wallpaper ids')
 
     def _create_empty_wallpaper(self, wall_id):
         return Wallpaper({'id': wall_id})
