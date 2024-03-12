@@ -14,10 +14,11 @@ All scripts tested under ~Ubuntu 22.04, Python 3.10~.
 
 **** Features
 
-- Check prices and
+- Check prices for the given flight with selenium 
 - Send notification via Pushover, with details results shown as image.
 
 **** Usage
+
 #+begin_src
 usage: check_aa_flight.py [-h] -f FROM_AIRPORT -t DEST_AIRPORT [-d [DEPART_DATE]] [-r [RETURN_DATE]] [--repeat-interval [REPEAT_INTERVAL]] [--repeat [REPEAT]] [--notify] [--no-export-pkl] [--pkl-save-folder PKL_SAVE_FOLDER]
                           [--no-export-txt] [--txt-save-folder TXT_SAVE_FOLDER] [--no-export-tsv] [--tsv-save-folder TSV_SAVE_FOLDER]
@@ -62,6 +63,9 @@ export PUSHOVER_USER=<USER_KEY>
 
 The notification looks as below, with the details shown as an image attachment.
 
+#+CAPTION: Pushover notification 
+[[./images/aa-flight-pushover-notification.png]]
+
 **** Limitations
 
 - Occasionally fail to load the results, so that some hard-coded refresh is used as a workaround. Will fetch the results eventually in most of time, just the process looks nasty
@@ -73,9 +77,6 @@ The notification looks as below, with the details shown as an image attachment.
 - Google Flight Search API document got 404
 - My quick google search gives me only paid APIs
 - I don't have a large-volume requests to make, just mimicking human interactions are good enough serving my purpose
-
-
-
 
 *** Wallhaven Fetcher
 
