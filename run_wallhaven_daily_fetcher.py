@@ -3,9 +3,6 @@ import sys
 import argparse
 import logging
 
-from src.wallhaven.enums import Purity, Category
-from src.wallhaven.fetcher import DailyFetcher
-
 parser = argparse.ArgumentParser()
 parser.add_argument('-d', '--download-files', action='store_true',
                     help="Whether to download image files (Default False)")
@@ -28,7 +25,7 @@ parser.add_argument('-o', '--keep-output', action='store_true',
 
 args = parser.parse_args()
 
-logger = logging.getLogger('data-fetch-utils.wallhaven.fetcher')
+logger = logging.getLogger('data-fetch-utils.wallhaven')
 logger.handlers.clear()
 
 formatter = logging.Formatter(
@@ -50,6 +47,9 @@ if args.log_file is None or args.keep_output:
     logger.addHandler(stream_handler)
 
 logger.setLevel(logging.DEBUG)
+
+from src.wallhaven.enums import Purity, Category
+from src.wallhaven.fetcher import DailyFetcher
 
 # TODO - add sanity check
 purities = Purity(int(args.purities, base=2))

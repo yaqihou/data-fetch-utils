@@ -1,6 +1,7 @@
 
 import os
 import abc
+import json
 import time
 import pickle
 from typing import Iterable, Optional
@@ -129,7 +130,7 @@ class Fetcher(abc.ABC):
     def get_wallpapers(self) -> list[Wallpaper]:
         """Return a list of wallpaper instance to be downloaded"""
 
-    def fetch_wallpaper_details(self, wallpapers):
+    def fetch_wallpaper_details(self, wallpapers: list[Wallpaper]):
         
         for wall in tqdm(wallpapers, desc="Updating wallpaper details"):
 
@@ -150,7 +151,7 @@ class Fetcher(abc.ABC):
 
     def _get_save_path(self, wallpaper: Wallpaper) -> str:
         
-        basename = wallpaper.path.split('/')[-1]
+        basename = wallpaper.path.split('/')[-1].removeprefix('wallhaven-')
         subfolder = basename[:2]
         save_path = os.path.join(self.base_dir, subfolder, basename)
 
@@ -222,6 +223,29 @@ class DailyFetcher(Fetcher):
         logger.info(f"Found {len(ret)} wallpapers in total.")
 
         return ret
+
+
+class IDFetcher(Fetcher):
+    """Fetch wall from given Ids"""
+
+    def __init__(self,
+                 wall_ids: list[str],
+                 download_file: bool = True,
+                 base_dir: Optional[str] = None,
+                 max_retries: int = 5,
+                 interval: int = 2):
+        super().__init__(fetch_wallpaper_details=True,
+                         download_file=download_file,
+                         base_dir=base_dir,
+                         max_retries=max_retries,
+                         interval=interval)
+        self.wall_ids = wall_ids
+
+    def _create_empty_wallpaper(self, wall_id):
+        return Wallpaper({'id': wall_id})
+
+    def get_wallpapers(self) -> list[Wallpaper]:
+        return [self._create_empty_wallpaper(wall_id) for wall_id in self.wall_ids]
 
 
 class QueryFetcher(Fetcher):
