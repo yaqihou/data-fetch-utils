@@ -93,18 +93,23 @@ usage: run_wallhaven_fetcher.py [-h] [-d] [-f] [-D [DIR]] [-p [PAGE]] [-i [INTER
 
 options:
   -h, --help            show this help message and exit
-  -d, --download-files
-  -f, --fetch-details
+  -d, --download-files  Whether to download image files (Default False)
+  -f, --fetch-details   Whether to fetch details info, e.g. includ. tags (Default False)
   -D [DIR], --dir [DIR]
+                        Base directory to save wallpaper files, if not given, environment variable
+                        WALLHAVEN_DIR or current folder will be used
   -p [PAGE], --page [PAGE]
                         Range of page to dwonload, use dash (-) for range, comma for separation
   -i [INTERVAL], --interval [INTERVAL]
+                        Waiting interval between two downloads or requests
   -C [CATEGORIES], --categories [CATEGORIES]
                         Flag for categories (General/Anime/People) in form of 101 (Default 111)
   -P [PURITIES], --purities [PURITIES]
                         Flag for categories (SFW/Sketchy/NSFW) in form of 110 (Default 110)
   -l [LOG_FILE], --log-file [LOG_FILE]
+                        Log file to store logging information
   -o, --keep-output     Leave output when set log-file
+
 #+end_src
 
 **** Todos
