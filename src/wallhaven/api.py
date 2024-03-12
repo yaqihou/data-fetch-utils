@@ -59,7 +59,7 @@ class API:
             params['apikey'] = self.apikey
 
         while time.time() - self.last_request_time <= self.request_interval:
-            time.sleep(1)  # rounded to integer, this would be more conservative
+            time.sleep(.5)
         
         logger.debug(f'Requesting URL: {url}')
         logger.debug(f'Request method: {method}')

@@ -74,6 +74,7 @@ class Fetcher(abc.ABC):
         success = False
         if os.path.isfile(save_path):
             logger.info(f"Wallpaper {wallpaper.id} has existing file {save_path}")
+            success = True
         else:
             retry = 0
             while retry < self.max_retries:
@@ -95,7 +96,7 @@ class Fetcher(abc.ABC):
     def _download(self, url, save_path, no_progress: bool = True, total_size=None) -> bool:
 
         while time.time() - self.last_download_time < self.interval:
-            time.sleep(1)
+            time.sleep(.5)
         
         r = requests.get(url, stream=True)
         
@@ -189,6 +190,7 @@ class DailyFetcher(Fetcher):
                  purities: Purity = Purity.SFW + Purity.SKETCHY,
                  categories: Category = Category.ALL):
 
+
         super().__init__(
             fetch_wallpaper_details=fetch_wallpaper_details,
             download_file=download_file,
@@ -240,6 +242,6 @@ class QueryFetcher(Fetcher):
             seed: Optional[str] = None):
         pass
 
-    # def _get_wallpapers(self)
+    # def _get_wallpape1rs(self)
 
 

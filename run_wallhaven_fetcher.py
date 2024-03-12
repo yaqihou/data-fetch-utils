@@ -1,4 +1,5 @@
 
+import sys
 import argparse
 import logging
 
@@ -34,19 +35,21 @@ formatter = logging.Formatter(
     fmt='%(asctime)s | %(levelname)s | %(message)s',
     datefmt='%m/%d/%Y %I:%M:%S %p')
 
-stream_handler = logging.StreamHandler()
+stream_handler = logging.StreamHandler(sys.stdout)
 stream_handler.setFormatter(formatter)
-stream_handler.setLevel('logging.DEBUG')
+stream_handler.setLevel(logging.DEBUG)
 
 if args.log_file is not None:
     file_handler = logging.FileHandler(args.log_file)
     file_handler.setFormatter(formatter)
-    file_handler.setLevel('logging.INFO')
+    file_handler.setLevel(logging.INFO)
 
     logger.addHandler(file_handler)
 
 if args.log_file is None or args.keep_output:
     logger.addHandler(stream_handler)
+
+logger.setLevel(logging.DEBUG)
 
 # TODO - add sanity check
 purities = Purity(int(args.purities, base=2))
