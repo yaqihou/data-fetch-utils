@@ -37,6 +37,7 @@ class AAFlightChecker:
                  driver: Optional[WebDriver] = None
                  ):
 
+        # TODO - check the format of depart_date & return date
 
         self.depart_date = (depart_date.strftime('%m/%d/%y')
                             if isinstance(depart_date, dt.date)
@@ -240,7 +241,12 @@ class AAFlightChecker:
         ]) + "@" + self.running_time.strftime('%Y%m%d-%H:%M:%S')
 
     def _get_folder(self, save_folder):
-        folder = os.path.join(save_folder, f'{self.from_airport}-{self.dest_airport}')
+        folder = os.path.join(
+            save_folder,
+            f'{self.from_airport}-{self.dest_airport}',
+            f"{self.depart_date.replace('/', '_')}-{self.return_date.replace('/', '_')}"
+        )
+        
         os.makedirs(folder, exist_ok=True)
         return folder
     
@@ -334,7 +340,7 @@ class AAFlightChecker:
             try:
                 self._run()
             except Exception as e:
-                logging.debug('Encountered the above exception, retrying', exc_info=1)
+                logging.debug('Encountered the above exception, retrying', exc_info=e)
                 retries += 1
             else:
                 self.success = True
