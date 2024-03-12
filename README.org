@@ -88,35 +88,67 @@ The notification looks as below, with the details shown as an image attachment.
 
 **** Usage
 
-#+begin_src shell
-usage: run_wallhaven_fetcher.py [-h] [-d] [-f] [-D [DIR]] [-p [PAGE]] [-i [INTERVAL]]
-                                [-C [CATEGORIES]] [-P [PURITIES]] [-l [LOG_FILE]] [-o]
+There are three fetcher defined for shortcuts of common fetching needs.
 
-options:
-  -h, --help            show this help message and exit
-  -d, --download-files  Whether to download image files (Default False)
-  -f, --fetch-details   Whether to fetch details info, e.g. includ. tags (Default False)
-  -D [DIR], --dir [DIR]
-                        Base directory to save wallpaper files, if not given, environment variable
-                        WALLHAVEN_DIR or current folder will be used
-  -p [PAGE], --page [PAGE]
-                        Range of page to dwonload, use dash (-) for range, comma for separation
-  -i [INTERVAL], --interval [INTERVAL]
-                        Waiting interval between two downloads or requests
-  -C [CATEGORIES], --categories [CATEGORIES]
-                        Flag for categories (General/Anime/People) in form of 101 (Default 111)
-  -P [PURITIES], --purities [PURITIES]
-                        Flag for categories (SFW/Sketchy/NSFW) in form of 110 (Default 110)
-  -l [LOG_FILE], --log-file [LOG_FILE]
-                        Log file to store logging information
-  -o, --keep-output     Leave output when set log-file
+- **DailyFetcher** - used to fetch the top-list and set to run daily
+  
+  #+begin_src
+  usage: run_wallhaven_daily_fetcher.py [-h] [-d] [-f] [-D [DIR]] [-p [PAGE]] [-i [INTERVAL]]
+                                        [-C [CATEGORIES]] [-P [PURITIES]] [-l [LOG_FILE]] [-o]
+  
+  options:
+    -h, --help            show this help message and exit
+    -d, --download-files  Whether to download image files (Default False)
+    -f, --fetch-details   Whether to fetch details info, e.g. includ. tags (Default False)
+    -D [DIR], --dir [DIR]
+                          Base directory to save wallpaper files, if not given, environment variable
+                          WALLHAVEN_DIR or current folder will be used
+    -p [PAGE], --page [PAGE]
+                          Range of page to dwonload, use dash (-) for range, comma for separation
+    -i [INTERVAL], --interval [INTERVAL]
+                          Waiting interval between two downloads or requests
+    -C [CATEGORIES], --categories [CATEGORIES]
+                          Flag for categories (General/Anime/People) in form of 101 (Default 111)
+    -P [PURITIES], --purities [PURITIES]
+                          Flag for categories (SFW/Sketchy/NSFW) in form of 110 (Default 110)
+    -l [LOG_FILE], --log-file [LOG_FILE]
+                          Log file to store logging information
+    -o, --keep-output     Leave output when set log-file
+  
+  #+end_src
 
-#+end_src
+- **IDFetcher** - used to fetch the information for a given set of wallpaper ids
+
+  #+begin_src 
+  usage: fetch_wallhaven_wallpaper_info.py [-h] [-d] [-D [DIR]] [-I [INPUT]] [-i [INTERVAL]]
+                                           [-l [LOG_FILE]] [-o]
+                                           [wall_ids ...]
+  
+  positional arguments:
+    wall_ids              Waiting interval between two downloads or requests
+  
+  options:
+    -h, --help            show this help message and exit
+    -d, --download-files  Whether to download image files (Default False)
+    -D [DIR], --dir [DIR]
+                          Base directory to save wallpaper files, if not given, environment
+                          variable WALLHAVEN_DIR or current folder will be used
+    -I [INPUT], --input [INPUT]
+                          Input file containing one wallpaper id per line
+    -i [INTERVAL], --interval [INTERVAL]
+                          Waiting interval between two downloads or requests
+    -l [LOG_FILE], --log-file [LOG_FILE]
+                          Log file to store logging information
+    -o, --keep-output     Leave output when set log-file
+
+  #+end_src
+  
+- **QueryFetcher** - This should be the most versatile one to support querying and related work. I have not yet got a use case, just leaving it as a placeholder for now.
 
 **** Todos
 
 - [ ] The API wrapper in ~api.py~ is not complete but just found out a full wrapper already existed: [[https://github.com/Goblenus/WallhavenApi/tree/master][WallhavenApi]].
-- [ ] to be found
+- [ ] Add support of exclude filter to query or daily fetcher
   
 *** Photo Tour Summarize (WIP)
 
