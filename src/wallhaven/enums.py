@@ -107,3 +107,9 @@ class Color(StrEnum):
     m_ffffff = "ffffff"
     m_424153 = "424153"
 
+
+class DownloadStatus(Enum):
+
+    SUCCEED = 0
+    EXISTED = 1
+    FAILED = 2

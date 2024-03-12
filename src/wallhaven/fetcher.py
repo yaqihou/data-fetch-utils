@@ -9,7 +9,7 @@ import requests
 from tqdm import tqdm
 
 from .defs import Wallpaper 
-from .enums import Purity, Category, Sorting, SortingOrder, TopRange, Color
+from .enums import Purity, Category, Sorting, SortingOrder, TopRange, Color, DownloadStatus
 from .api import API
 from ..exceptions import TooManyRequestsError, UnknownResponseError
 from ..logger import MyLogger
@@ -67,13 +67,13 @@ class Fetcher(abc.ABC):
             pickle.dump(self.cache, f)
             logger.debug(f'Saved {len(self.cache)} cached entries to {self.cache_file}')
 
-    def download(self, wallpaper: Wallpaper, **kwargs):
+    def download(self, wallpaper: Wallpaper, **kwargs) -> DownloadStatus:
 
         save_path = self._get_save_path(wallpaper)
-        success = False
+        status = DownloadStatus.FAILED
         if os.path.isfile(save_path):
             logger.info(f"Wallpaper {wallpaper.id} has existing file {save_path}")
-            success = True
+            status = DownloadStatus.EXISTED
         else:
             retry = 0
             while retry < self.max_retries:
@@ -87,10 +87,11 @@ class Fetcher(abc.ABC):
                                 exc_info=e)
                     break
                 else:
-                    success = True
+                    logger.info(f"Wallpaper {wallpaper.id} successfully downloaded to {save_path}")
+                    status = DownloadStatus.SUCCEED
                     break
 
-        return success
+        return status
 
     def _download(self, url, save_path, no_progress: bool = True, total_size=None) -> bool:
 
@@ -181,14 +182,23 @@ class Fetcher(abc.ABC):
             for wallpaper in tqdm(wallpapers, desc='Downloading wallpapers'):
                 download_status[wallpaper] = self.download(wallpaper)
 
-            num_success = sum(download_status.values())
+            self._report_download_status(download_status)
 
-            logger.info(f"Download finished: succeeded {num_success} / failed {len(wallpapers) - num_success}")
-            if num_success != len(wallpapers):
-                for wall, status in download_status.items():
-                    if not status:
-                        logger.info(f"Failed to download for wallpaper {wall.id} @ {wall.path}")
+    @staticmethod
+    def _report_download_status(download_status: dict[Wallpaper, DownloadStatus]):
+        num_success = sum(1 if v is DownloadStatus.SUCCEED else 0
+                          for v in download_status.values())
+        num_existed = sum(1 if v is DownloadStatus.EXISTED else 0
+                          for v in download_status.values())
+        num_failed = len(download_status) - num_existed - num_success
 
+        logger.info(f"Download summary: {num_success} / {num_existed} / {num_failed}"
+                    " (success / existed / failed)")
+        if num_failed > 0:
+            for wall, status in download_status.items():
+                if status is DownloadStatus.FAILED:
+                    logger.info(f"Failed to download for wallpaper {wall.id} @ {wall.path}")
+        
 
 class DailyFetcher(Fetcher):
     """Fetch from the latest list"""
