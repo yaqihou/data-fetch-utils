@@ -1,5 +1,7 @@
 
 import os
+import time
+from tqdm import tqdm
 import datetime as dt
 import parsedatetime as pdt
 
@@ -7,6 +9,16 @@ import requests
 
 from PIL import Image, ImageDraw, ImageFont
 
+def wait_with_count(sleep_time, desc="Waiting for"):
+
+    for _ in (bar := tqdm(range(sleep_time),
+                            desc=desc,
+                            miniters=1,
+                            # ncols=0,
+                            # dynamic_ncols=False,
+                            bar_format='{desc}: {elapsed}<{remaining}'
+                            )):
+        time.sleep(1)
 
 def next_weekday(date, weekday) -> dt.date:
     days_ahead = weekday - date.weekday()
