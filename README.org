@@ -90,7 +90,7 @@ The notification looks as below, with the details shown as an image attachment.
 
 There are three fetcher defined for shortcuts of common fetching needs.
 
-- **DailyFetcher** - used to fetch the top-list and set to run daily
+- *DailyFetcher* - used to fetch the top-list and set to run daily
   
   #+begin_src
   usage: run_wallhaven_daily_fetcher.py [-h] [-d] [-f] [-D [DIR]] [-p [PAGE]] [-i [INTERVAL]]
@@ -117,7 +117,7 @@ There are three fetcher defined for shortcuts of common fetching needs.
   
   #+end_src
 
-- **IDFetcher** - used to fetch the information for a given set of wallpaper ids
+- *IDFetcher* - used to fetch the information for a given set of wallpaper ids
 
   #+begin_src 
   usage: fetch_wallhaven_wallpaper_info.py [-h] [-d] [-D [DIR]] [-I [INPUT]] [-i [INTERVAL]]
@@ -143,7 +143,7 @@ There are three fetcher defined for shortcuts of common fetching needs.
 
   #+end_src
   
-- **QueryFetcher** - This should be the most versatile one to support querying and related work. I have not yet got a use case, just leaving it as a placeholder for now.
+- *QueryFetcher* - This should be the most versatile one to support querying and related work. I have not yet got a use case, just leaving it as a placeholder for now.
 
 **** Todos
 
