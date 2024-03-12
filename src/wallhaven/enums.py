@@ -5,14 +5,22 @@ class MaskEnum(Enum):
 
     def __add__(self, other):
 
-        # Use 8 to ensure always have 3 digits
         if isinstance(other, self.__class__):
             return self.__class__(self.value | other.value)
         else:
             raise ValueError(f'Cannot add {type(self)} and {type(other)}')
 
+    def __radd__(self, left):
+        return self.__add__(left)
+
     def __str__(self):
+        # Use 8 to ensure always have 3 digits
         return bin(8 | self.value)[3:]
+
+class StrEnum(Enum):
+
+    def __str__(self):
+        return self.value
 
 
 class Purity(MaskEnum):
@@ -41,7 +49,7 @@ class Category(MaskEnum):
     ALL = 7
 
 
-class Sorting(Enum):
+class Sorting(StrEnum):
 
     DATE_ADDED = 'date_added'
     RELEVANCE = 'relevance'
@@ -51,13 +59,13 @@ class Sorting(Enum):
     TOPLIST = 'toplist'
         
 
-class SortingOrder(Enum):
+class SortingOrder(StrEnum):
 
     DESC = 'desc'
     ASC = 'asc'
 
 
-class TopRange(Enum):
+class TopRange(StrEnum):
 
     D1 = '1d'
     D3 = '3d'
@@ -68,7 +76,7 @@ class TopRange(Enum):
     Y1 = '1Y'
 
 
-class Color(Enum):
+class Color(StrEnum):
     m_660000 = "660000"
     m_990000 = "990000"
     m_cc0000 = "cc0000"

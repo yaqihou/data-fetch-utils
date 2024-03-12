@@ -17,3 +17,9 @@ class UnknownResponseError(Exception):
 
     def __init__(self, response) -> None:
         super().__init__(f"Unknown error with response status code {response.status_code}")
+
+
+class MaxRetryReachedError(Exception):
+
+    def __init__(self) -> None:
+        super().__init__("Failed after reaching max retries limit")

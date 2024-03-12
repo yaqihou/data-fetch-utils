@@ -1,16 +1,21 @@
 
 import re
 import os
+import time
 import requests
+import logging
 from typing import Optional
+from functools import wraps
 
-from .defs import Wallpaper 
 from .enums import Category, Purity, SortingOrder, TopRange, Sorting, Color
-from ..exceptions import TooManyRequestsError, UnauthorizedError, UnknownResponseError
+from ..exceptions import TooManyRequestsError, UnauthorizedError, UnknownResponseError, MaxRetryReachedError
+
+logger = logging.getLogger('data-fetch-util.wallhaven.api')
 
 class API:
 
-    # NSFW wallpapers are blocked to guests. Users can access them by providing their API key:
+    # NSFW wallpapers are blocked to guests.
+    # Users can access them by providing their API key:
     # https://wallhaven.cc/api/v1/w/<ID>?apikey=<API KEY>
     WALLPAPER_INFO_URL = 'https://wallhaven.cc/api/v1/w/'
 
@@ -36,20 +41,35 @@ class API:
     #
     # Any other attempts to use an invalid API key will result in a 401 -
     # Unauthorized error.
+    last_request_time = time.time()
 
 
-    def __init__(self, apikey=None):
+    def __init__(self,
+                 apikey: Optional[str] = None,
+                 max_retries: int = 5,
+                 request_interval: int = 2):
+
         self.apikey = os.getenv('WALLHAVEN_API_KEY') if apikey is None else apikey
-            
-    def _request(self, url, method='get', params=dict()):
+        self.max_retries = max_retries
+        self.request_interval = request_interval
+
+    def _request(self, url, method='get', params=dict()) -> requests.Response:
 
         if self.apikey is not None and 'apikey' not in params:
             params['apikey'] = self.apikey
+
+        while time.time() - self.last_request_time <= self.request_interval:
+            time.sleep(1)  # rounded to integer, this would be more conservative
         
+        logger.debug(f'Requesting URL: {url}')
+        logger.debug(f'Request method: {method}')
+        logger.debug(f'Request params: {params}')
+
         r = requests.request(method, url, params=params)
+        self.last_request_time = time.time()
 
         if r.status_code == 200:
-            pass
+            return r
         elif r.status_code == 429:
             raise TooManyRequestsError
         elif r.status_code == 401:
@@ -57,11 +77,23 @@ class API:
         else:
             raise UnknownResponseError(r)
 
-        return r
+    def request(self, url, method='get', params=dict()) -> requests.Response:
 
-    def get_wallpaper_info(self, wid):
-        r = self._request(self.WALLPAPER_INFO_URL + wid)
-        return Wallpaper(r.json()['data'])
+        retry = 0
+        while retry < self.max_retries:
+            try:
+                ret = self._request(url, method=method, params=params)
+            except TooManyRequestsError as e:
+                logger.info("Request returned with code 429, waiting to retry")
+                retry += 1
+                time.sleep(5)
+            else:
+                return ret
+
+        raise MaxRetryReachedError
+
+    def get_wallpaper_info(self, wid) -> requests.Response:
+        return self.request(self.WALLPAPER_INFO_URL + str(wid))
 
     def _parse(self, res_json):
         ret = {}
@@ -84,34 +116,29 @@ class API:
                resolutions: Optional[list[str]] = None,
                ratios: Optional[list[str]] = None,
                colors: Optional[Color] = None,
-               page: Optional[str] = None,
-               seed: Optional[str] = None
-               ):
+               page: Optional[int] = None,
+               seed: Optional[str] = None) -> requests.Response:
 
         if top_range is not None:
             if sorting is None or sorting != Sorting.TOPLIST:
                 raise ValueError(f'Argument top_range must be used with sorting = toplist')
 
         params = {}
-
-        # params that don't need extra treatment
-        for name, var in [('q', q),
-                          ('page', page),
-                          ('seed', seed)]:
-            if var is not None:
-                params[name] = var
         
         # param from Enum
         for name, var in [
-                ('categories', categories),
-                ('purity', purity),
+                ('q', q),
+                ('page', page),
+                ('seed', seed),
                 ('sorting', sorting),
                 ('order', order),
                 ('topRange', top_range),
-                ('colors', colors)
+                ('colors', colors),
+                ('categories', categories),
+                ('purity', purity),
         ]:
             if var is not None:
-                params[name] = var.value
+                params[name] = str(var)
 
         # param requiring special treatment
         for name, var in [
@@ -128,6 +155,5 @@ class API:
                     map(self._verify_dimension_format, var)            
                     params[name] = ','.join(var)
 
-        r = self._request(self.SEARCH_API_URL, params=params)
-        return [Wallpaper(wallpaper_json) for wallpaper_json in r.json()['data']]
+        return self.request(self.SEARCH_API_URL, params=params)
 
