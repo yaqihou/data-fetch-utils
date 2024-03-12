@@ -1,7 +1,7 @@
 
 * Data Fetching Utilities Collection
 
-This repository stores a collection of scripts I used to fetch data from WWW.
+This repository stores a collection of scripts I used to fetch data from WWW over the years. They existed for a long time as single-file scripts for a long time and until recently I started to gradually refactor them into this repository for centralized storage. 
 
 Disclaimer: all scripts here are just to make my life easier, and nothing was intended to be used as web crawler or for large-scale data fetching. 
 
@@ -14,7 +14,8 @@ All scripts tested under ~Ubuntu 22.04, Python 3.10~.
 
 **** Features
 
-- Check prices and 
+- Check prices and
+- Send notification via Pushover, with details results shown as image.
 
 **** Usage
 #+begin_src
@@ -52,8 +53,74 @@ For example, assuming that I could like to travel on Wed, return the next Tue af
 python3 check_aa_flight.py -f AAA -t BBB -d "next wed" -r "next Tue" --repeat 10 --repeat-interval 7
 #+end_src
 
+The script also support to send notification via Pushover API with result details as well as some bird-view statistics. To set up, define the following environment variable
+
+#+begin_src shell
+export PUSHOVER_TOKEN=<API_TOKEN>
+export PUSHOVER_USER=<USER_KEY>
+#+end_src
+
+The notification looks as below, with the details shown as an image attachment.
+
 **** Limitations
+
 - Occasionally fail to load the results, so that some hard-coded refresh is used as a workaround. Will fetch the results eventually in most of time, just the process looks nasty
 - Only fetch the price on the depart screen, i.e. shows only the lowest price
-- Only implemented for AA
+- Only implemented for AA flights
+
+**** Why not using an API? 
+
+- Google Flight Search API document got 404
+- My quick google search gives me only paid APIs
+- I don't have a large-volume requests to make, just mimicking human interactions are good enough serving my purpose
+
+
+
+
+*** Wallhaven Fetcher
+
+**** Features
+
+- Use [[https://wallhaven.cc/help/api][Wallhaven API]] to support query and file download
+- Implement a Python API wrapper that could be used in other packages as standalone package
+- The request is mad EXTREMELY conservative with explicit waiting interval: this is intended
+
+**** Usage
+
+#+begin_src shell
+usage: run_wallhaven_fetcher.py [-h] [-d] [-f] [-D [DIR]] [-p [PAGE]] [-i [INTERVAL]]
+                                [-C [CATEGORIES]] [-P [PURITIES]] [-l [LOG_FILE]] [-o]
+
+options:
+  -h, --help            show this help message and exit
+  -d, --download-files
+  -f, --fetch-details
+  -D [DIR], --dir [DIR]
+  -p [PAGE], --page [PAGE]
+                        Range of page to dwonload, use dash (-) for range, comma for separation
+  -i [INTERVAL], --interval [INTERVAL]
+  -C [CATEGORIES], --categories [CATEGORIES]
+                        Flag for categories (General/Anime/People) in form of 101 (Default 111)
+  -P [PURITIES], --purities [PURITIES]
+                        Flag for categories (SFW/Sketchy/NSFW) in form of 110 (Default 110)
+  -l [LOG_FILE], --log-file [LOG_FILE]
+  -o, --keep-output     Leave output when set log-file
+#+end_src
+
+**** Todos
+
+- [ ] The API wrapper in ~api.py~ is not complete but just found out a full wrapper already existed: [[https://github.com/Goblenus/WallhavenApi/tree/master][WallhavenApi]].
+- [ ] to be found
+  
+*** Photo Tour Summarize (WIP)
+
+- Collect information from different photo tour website and 
+- Used a script to invoke ChatGPT to generate parsing code to support new websites
+
+**** Usage 
+
+There are two kinds of websites defined: 
+
+
+**** 
 
