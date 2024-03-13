@@ -32,7 +32,7 @@ class Wallpaper:
     def __init__(self, json):
 
         self.json: dict = {}
-        self.tags = None
+        self._tags = None
 
         self.update(json)
 
@@ -47,7 +47,7 @@ class Wallpaper:
         self.json.update(new_json)
 
         if 'tags' in self.json:
-            self.tags = Tags(self.json['tags'])
+            self._tags = Tags(self.json['tags'])
 
     def _get_and_convert(self, attr, transform_func=lambda x: x):
         ret = self.json.get(attr)
@@ -55,6 +55,10 @@ class Wallpaper:
             return ret
         else:
             return transform_func(ret)
+
+    @property
+    def tags(self) -> Optional[Tags]:
+        return self._tags
 
     @property
     def id(self) -> str:
@@ -101,7 +105,7 @@ class Wallpaper:
     @staticmethod
     def _parse_time(x):
         try:
-            ret = dt.datetime.strptime(x, '%Y-%m-%d %M:%M:%S')
+            ret = dt.datetime.strptime(x, '%Y-%m-%d %H:%M:%S')
         except:
             logging.debug(f'Failed to parse created_at time string {x}')
             ret = None
