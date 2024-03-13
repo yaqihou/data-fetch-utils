@@ -3,7 +3,6 @@ import os
 import abc
 import json
 import time
-import pickle
 from typing import Iterable, Optional
 import requests
 from tqdm import tqdm
@@ -11,6 +10,8 @@ from tqdm import tqdm
 from .defs import Wallpaper 
 from .enums import Purity, Category, Sorting, SortingOrder, TopRange, Color, DownloadStatus
 from .api import API
+from .cacher import Cache
+
 from ..exceptions import TooManyRequestsError, UnknownResponseError
 from ..logger import MyLogger
 
@@ -18,18 +19,7 @@ logger = MyLogger('data-fetch-utils.wallhaven.fetcher')
 
 class Fetcher(abc.ABC):
 
-    cache_file = os.path.join(os.getenv('HOME') or '.',
-                              '.cache',
-                              'data-fetch-utils',
-                              'wallhaven_downloaded.pkl')
-
     last_download_time: float = time.time() 
-
-    if os.path.isfile(cache_file):
-        with open(cache_file, 'rb') as f:
-            cache = pickle.load(f)
-    else:
-        cache = {}
 
     def __init__(self,
                  fetch_wallpaper_details: bool = True,
@@ -38,6 +28,8 @@ class Fetcher(abc.ABC):
                  max_retries: int = 5,
                  interval: int = 2):
 
+        self.cache = Cache()
+
         self.need_fetch_wallpaper_details = fetch_wallpaper_details
         self.need_download_file = download_file
         self.base_dir = base_dir if base_dir is not None else (os.getenv('WALLHAVEN_DIR') or '.')
@@ -45,7 +37,6 @@ class Fetcher(abc.ABC):
         self.interval = interval
 
         self.api = API(max_retries=max_retries, request_interval=interval)
-        logger.debug(f'Loaded {len(self.cache)} entries from cache file {self.cache_file}')
 
         logger.info("Fetcher initialize setup")
         logger.info(f'Need to fetch wallpaper details: {self.need_fetch_wallpaper_details}')
@@ -53,19 +44,6 @@ class Fetcher(abc.ABC):
         logger.info(f'Base dir to save wallpaper: {self.base_dir}')
         logger.info(f'Max retries: {self.max_retries}')
         logger.info(f'Request interval {self.interval}')
-
-    def add_to_cache(self, wallpaper: Wallpaper):
-        self.cache[wallpaper.id] = wallpaper.json
-
-    def save_cache(self):
-        dirname = os.path.dirname(self.cache_file)
-        if not os.path.isdir(dirname):
-            logger.debug(f'Cache folder {dirname} does not exist, create one')
-            os.makedirs(dirname)
-
-        with open(self.cache_file, 'wb') as f:
-            pickle.dump(self.cache, f)
-            logger.debug(f'Saved {len(self.cache)} cached entries to {self.cache_file}')
 
     def download(self, wallpaper: Wallpaper, **kwargs) -> DownloadStatus:
 
@@ -153,14 +131,14 @@ class Fetcher(abc.ABC):
                     else:
                         wall.update(json['data'])
 
-                self.add_to_cache(wall)
+                self.cache.add(wall)
 
                 save_cnt += 1
                 if save_cnt == 200:
-                    self.save_cache()
+                    self.cache.save()
                     save_cnt = 0
 
-        self.save_cache()
+        self.cache.save()
 
     def _get_save_path(self, wallpaper: Wallpaper) -> str:
         
