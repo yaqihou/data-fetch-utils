@@ -4,11 +4,7 @@ from enum import Enum
 class MaskEnum(Enum):
 
     def __add__(self, other):
-
-        if isinstance(other, self.__class__):
-            return self.__class__(self.value | other.value)
-        else:
-            raise ValueError(f'Cannot add {type(self)} and {type(other)}')
+        return self.__class__(self | other)
 
     def __radd__(self, left):
         return self.__add__(left)
@@ -16,6 +12,30 @@ class MaskEnum(Enum):
     def __str__(self):
         # Use 8 to ensure always have 3 digits
         return bin(8 | self.value)[3:]
+
+    def __or__(self, other) -> bool:
+
+        if isinstance(other, self.__class__):
+            return self.value | other.value
+
+        if isinstance(other, str):
+            _other_val = int(other, 2)
+            assert _other_val >= 0 and _other_val < 8
+            return self.value | _other_val
+
+        raise ValueError(f'Or operation between {self.__class__} and {other.__class__} is not supported')
+
+    def __and__(self, other) -> bool:
+
+        if isinstance(other, self.__class__):
+            return self.value & other.value
+
+        if isinstance(other, str):
+            _other_val = int(other, 2)
+            assert _other_val >= 0 and _other_val < 8
+            return self.value & _other_val
+
+        raise ValueError(f'Or operation between {self.__class__} and {other.__class__} is not supported')
 
 class StrEnum(Enum):
 
@@ -34,6 +54,7 @@ class Purity(MaskEnum):
     SKETCHY_NSFW = 3
 
     ALL = 7
+    NONE = 0
 
 
 class Category(MaskEnum):
@@ -47,6 +68,7 @@ class Category(MaskEnum):
     ANIME_PEOPLE = 3
 
     ALL = 7
+    NONE = 0
 
 
 class Sorting(StrEnum):
@@ -113,3 +135,12 @@ class DownloadStatus(Enum):
     SUCCEED = 0
     EXISTED = 1
     FAILED = 2
+
+class By(Enum):
+
+    RATIO = 'ratio'
+    FILE_SIZE = 'file_size'
+    PURITY = 'purity'
+    CATEGORY = 'category'
+    CREATED = "created"
+    CREATED_DATE = "created_date"
