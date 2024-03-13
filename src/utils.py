@@ -64,11 +64,20 @@ def parse_str_date(date_to_parse, source_date=None):
     try:
         date = dt.date(*cal.parseDate(date_to_parse, source_date)[:3])
     except ValueError:
+        # This will parse in "natural language"
         time_struct = cal.parse(date_to_parse, source_date)[0]
         date = dt.date(*time_struct[:3])
 
-
     return date
+
+def rectify_date(date_input: dt.date | str):
+
+    if isinstance(date_input, dt.date):
+        return date_input
+    elif isinstance(date_input, str):
+        return parse_str_date(date_input)
+    else:
+        raise ValueError(f'Given input {date_input} is not a valid date')
     
 def send_pushover_notification(message, title="", files=dict()):
     token = os.getenv("PUSHOVER_TOKEN")

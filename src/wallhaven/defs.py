@@ -1,11 +1,11 @@
 
-import logging
 import datetime as dt
 from typing import Optional
 
 from .enums import Purity, Category
+# from ..logger import MyLogger
 
-logger = logging.getLogger('data-fetch-utils.wallhaven')
+# logger = MyLogger('data-fetch-utils.wallhaven')
 
 class Tags:
 
