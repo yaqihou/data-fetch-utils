@@ -1,12 +1,15 @@
 
 import os
+import sys
 import time
 import datetime as dt
+import logging
 from argparse import ArgumentParser
 import subprocess
 
 from src.driver import MyDriver
-from src.utils import parse_str_date
+from src.utils import parse_str_date, send_pushover_notification
+from src.logger import MyLogger
 from src.flights.aa_flight_checker import AAFlightChecker
 
 parser = ArgumentParser()
@@ -26,6 +29,8 @@ parser.add_argument('--repeat', default=1, type=int, nargs='?',
                           " with interval <interval>"))
 
 parser.add_argument('--notify', action="store_true", help='Send notification when results are ready')
+parser.add_argument('-l', '--log-file', nargs='?', default='', type=str,
+                    help='Send notification when results are ready')
 # parser.add_argument('--export-pkl', nargs='?', default=False, type=str,
 parser.add_argument('--no-export-pkl', action="store_true",
                     help="Do not savee fights info as PKL file")
@@ -46,6 +51,25 @@ parser.add_argument('--tsv-save-folder', type=str, nargs='?',
                     help="Folder to save tsv files")
 
 args = parser.parse_args()
+
+logger = MyLogger('data-fetch-utils.flights')
+formatter = logging.Formatter(
+    fmt='%(asctime)s | %(levelname)s | %(message)s',
+    datefmt='%m/%d/%Y %I:%M:%S %p')
+
+stream_handler = logging.StreamHandler(sys.stdout)
+stream_handler.setFormatter(formatter)
+stream_handler.setLevel(logging.DEBUG)
+logger.addHandler(stream_handler)
+
+if args.log_file is not None:
+    file_handler = logging.FileHandler(args.log_file)
+    file_handler.setFormatter(formatter)
+    file_handler.setLevel(logging.INFO)
+
+    logger.addHandler(file_handler)
+
+logger.setLevel(logging.DEBUG)
     
 # Run for next 6 weeks
 from_airport = args.from_airport[0]
@@ -58,24 +82,49 @@ return_date = parse_str_date(args.return_date, source_date=depart_date)
 # subprocess.run("DISPLAY=:1 xset dpms force on", shell=True)
 
 with MyDriver() as driver:
+    failed_tasks = []
+    success_tasks = []
     for _ in range(args.repeat):
-        checker = AAFlightChecker(from_airport, dest_airport, depart_date, return_date, driver=driver)
-        checker.run()
+        task = (from_airport, dest_airport, depart_date, return_date)
+        try:
+            checker = AAFlightChecker(from_airport, dest_airport, depart_date, return_date, driver=driver)
+            checker.run()
 
-        if not args.no_export_pkl:
-            checker.dump_pkl(save_folder=args.pkl_save_folder)
+            if not args.no_export_pkl:
+                checker.dump_pkl(save_folder=args.pkl_save_folder)
 
-        if not args.no_export_txt:
-            checker.dump_txt(save_folder=args.txt_save_folder)
+            if not args.no_export_txt:
+                checker.dump_txt(save_folder=args.txt_save_folder)
 
-        if not args.no_export_tsv:
-            checker.dump_tsv(save_folder=args.tsv_save_folder)
+            if not args.no_export_tsv:
+                checker.dump_tsv(save_folder=args.tsv_save_folder)
 
-        if args.notify:
-            checker.send_notification()
+            if args.notify:
+                checker.send_notification()
 
-        depart_date = depart_date + dt.timedelta(args.repeat_interval)
-        return_date = return_date + dt.timedelta(args.repeat_interval)
+            logger.info("All flights check finished, wait for 5 secs to get next one")
+            success_tasks.append(task)
+        except:
+            failed_tasks.append(task)
+            logger.error("Failed to check flight information for "
+                         f"{from_airport} @ {depart_date} -> {dest_airport} @ {return_date}")
+        finally:
 
-        print("Flights check finished, wait for 5 secs to get next one")
-        time.sleep(5)
+            depart_date = depart_date + dt.timedelta(args.repeat_interval)
+            return_date = return_date + dt.timedelta(args.repeat_interval)
+
+            time.sleep(5)
+
+
+title = "AA Flight Summary Report"
+message = f"""Overall stats: {len(success_tasks)} / {len(failed_tasks)} (success / fail)
+"""
+
+if failed_tasks:
+    message += """Failed tasks:
+    """ + '\n'.join(f"{from_airport} @ {depart_date} -> {dest_airport} @ {return_date}"
+                for from_airport, dest_airport, depart_date, return_date in failed_tasks)
+else:
+    message += """Failed tasks: None"""
+
+send_pushover_notification(message, title=title)

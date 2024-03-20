@@ -3,7 +3,6 @@
 import os
 import time
 import pickle
-import logging
 import datetime as dt
 from typing import Optional
 from tabulate import SEPARATING_LINE, tabulate
@@ -21,9 +20,10 @@ from selenium.common.exceptions import NoSuchElementException, TimeoutException
 
 from ..utils import convert_text_to_img, send_pushover_notification
 from ..driver import MyDriver
+from ..logger import MyLogger
 from .defs import Flight, Flights, UNKNOWN_CABIN
 
-logger = logging.getLogger('data-fetch-utils.flights')
+logger = MyLogger('data-fetch-utils.flights')
 # NOTE - there are hidden accessible class having more details textual information
 
 class AAFlightChecker:
@@ -101,7 +101,7 @@ class AAFlightChecker:
             button = shadow_root.find_element(By.CSS_SELECTOR, '#toast-dismiss-button')
             button.click()
         except NoSuchElementException:
-            logging.debug('No cookie banner detected.')
+            logger.debug('No cookie banner detected.')
         else:
             time.sleep(0.5)
 
@@ -158,6 +158,8 @@ class AAFlightChecker:
         for cabin in cabin_group.find_elements(By.TAG_NAME, 'button'):
             self.cabins.append(cabin.get_attribute('id').lower().removeprefix('sort-by-'))
         self.flights.update_cabins(self.cabins)
+
+        logger.info('Found the folloing cabins: %s', ' / '.join(self.cabins))
 
         # Get flight details
         results = results_matrix.find_element(By.CSS_SELECTOR, 'div.results-grid-container')
@@ -257,7 +259,7 @@ class AAFlightChecker:
         path = os.path.join(folder, filename)
         with open(path, 'wb') as f:
             pickle.dump(self.flights, f)
-            logger.info(f"Pkl file saved to {path}")
+            logger.info(f"PKL file saved to %s", path)
 
     def dump_txt(self, filename=None, save_folder="."):
         folder = self._get_folder(save_folder)
@@ -266,7 +268,7 @@ class AAFlightChecker:
         path = os.path.join(folder, filename)
         with open(path, 'w') as f:
             f.write(self.tabulate_flights())
-            logger.info(f"TXT file saved to {path}")
+            logger.info(f"TXT file saved to %s", path)
 
     def dump_tsv(self, filename=None, save_folder="." ):
         folder = self._get_folder(save_folder)
@@ -275,7 +277,7 @@ class AAFlightChecker:
         path = os.path.join(folder, filename)
         with open(path, 'w') as f:
             f.write(self.tabulate_flights(fmt='tsv'))
-            logger.info(f"TSV file saved to {path}")
+            logger.info(f"TSV file saved to %s", path)
 
     def _get_meta_data(self):
         ret = [["From:", self.from_airport, "To:", self.dest_airport,
@@ -302,9 +304,9 @@ class AAFlightChecker:
 
     def send_notification(self):
 
-        title = "AA Fligth Check Report"
+        title = "AA Flight Detail Report"
         message = (
-            "\n".join([f"Report Time: {dt.datetime.now()}", "",])
+            "\n".join([f"Report Time: {dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", "",])
             + "\n".join(" ".join(map(str, line)) for line in self._get_meta_data())
             )
         
@@ -340,7 +342,7 @@ class AAFlightChecker:
             try:
                 self._run()
             except Exception as e:
-                logging.debug('Encountered the above exception, retrying', exc_info=e)
+                logger.debug('Encountered the above exception, retrying', exc_info=e)
                 retries += 1
             else:
                 self.success = True
