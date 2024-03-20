@@ -5,12 +5,19 @@ import logging
 
 class MyLogger:
 
+    _registers = {}
+
     def __init__(self, name: Optional[str] = None):
         self.name = name
 
+        if name not in self._registers:
+            self._registers[name] = logging.getLogger(name)
+
+        self._logger = self._registers[name]
+
     @property
     def logger(self):
-        return logging.getLogger(self.name)
+        return self._logger
     
     def info(self, *args, **kwargs):
         return self.logger.info(*args, **kwargs)
@@ -27,6 +34,7 @@ class MyLogger:
     def error(self, *args, **kwargs):
         return self.logger.error(*args, **kwargs)
 
+    # --------------------
     def addHandler(self, *args, **kwargs):
         return self.logger.addHandler(*args, **kwargs)
 
@@ -34,5 +42,6 @@ class MyLogger:
     def handlers(self):
         return self.logger.handlers
 
+    # --------------------
     def setLevel(self, *args, **kwargs):
         return self.logger.setLevel(*args, **kwargs)
