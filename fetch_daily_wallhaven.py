@@ -3,6 +3,8 @@ import sys
 import argparse
 import logging
 
+from src.logger import MyLogger
+
 parser = argparse.ArgumentParser()
 parser.add_argument('-d', '--download-files', action='store_true',
                     help="Whether to download image files (Default False)")
@@ -25,7 +27,7 @@ parser.add_argument('-o', '--keep-output', action='store_true',
 
 args = parser.parse_args()
 
-logger = logging.getLogger('data-fetch-utils.wallhaven')
+logger = MyLogger('data-fetch-utils.wallhaven')
 logger.handlers.clear()
 
 formatter = logging.Formatter(
@@ -59,7 +61,7 @@ for rng in args.page.split(','):
     rng = rng.strip()
     if '-' in rng:
         s, e = rng.split('-')
-        page_range.extend(range(int(s), int(e)))
+        page_range.extend(range(int(s), int(e)+1))
     else:
         page_range.append(int(rng))
 

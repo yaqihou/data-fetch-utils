@@ -100,6 +100,7 @@ class Fetcher(abc.ABC):
                     wrote += int(len(chunk))
                     f.write(chunk)
         r.close()
+        self.last_download_time = time.time()
 
         return wrote == total_size
 
